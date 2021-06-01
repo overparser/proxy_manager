@@ -5,23 +5,35 @@ import time
 class Formatters:
     @staticmethod
     def aiohttp(self):
-        return f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
+        if self.login:
+            return f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
+        return f"http://{self.ip}:{self.port}"
 
     @staticmethod
     def http_requests(self):
+        if self.login:
+            return {
+                'http': f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
+            }
         return {
-            'http': f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
-        }
+                'http': f"http://{self.ip}:{self.port}"
+            }
 
     @staticmethod
     def https_requests(self):
+        if self.login:
+            return {
+                'http': f"https://{self.login}:{self.password}@{self.ip}:{self.port}"
+            }
         return {
-            'https': f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
+            'http': f"https://{self.ip}:{self.port}"
         }
 
     @staticmethod
     def dict(self):
-        return {'login': self.login, 'password': self.password, 'ip': self.ip, 'port': self.port}
+        if self.login:
+            return {'login': self.login, 'password': self.password, 'ip': self.ip, 'port': self.port}
+        return {'ip': self.ip, 'port': self.port}
 
 
 class Proxy:
@@ -178,11 +190,24 @@ class ProxyPool:
 
 class ProxyManager:
     def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
+        """
+        :param proxy_interval: добавляет указанный интервал в секундах каждый раз когда используется прокси
+        :param proxy_error_interval: добавляет указанный интервал на прокси в случае ошибки
+        :param can_sleep: если время прокси больше чем текущее время то использует sleep
+         пока время прокси не станет меньше текущего времени
+        """
         self.proxy_pool = ProxyPool(proxy_interval=proxy_interval, proxy_error_interval=proxy_error_interval,
                                     can_sleep=can_sleep)
         self.proxy_loader = ProxyLoader()
 
-    def load_from_txt(self, path, parse_pattern='login:password@ip:port:'):
+    def load_from_txt(self, path, parse_pattern='login:password@ip:port'):
+        """
+
+        :param path: путь к файлу прокси
+        :param parse_pattern указывается порядок полей прокси и их разделители:
+        'login:password@ip:port' или 'ip:port'
+        :return:
+        """
         proxies = self.proxy_loader.load_from_txt(path, parse_pattern)
         self.proxy_pool.add_proxies(proxies)
 
@@ -203,5 +228,5 @@ if __name__ == "__main__":
     pm = ProxyManager()
     pm.load_from_txt('proxies.txt', 'ip:port:login:password')
     for i in range(155):
-        with pm.get('aiohttp') as proxy:
+        with pm.get('http_requests') as proxy:
             print(proxy)
