@@ -1,13 +1,10 @@
 @startuml
 class ProxyManager{
-      path: str
-      parse_pattern: str
-      formatter_name: str
       proxy_interval: int
-      can_sleep: str
+      proxy_error_interval: int
+      can_sleep: bool
 }
-ProxyManager --> ProxyLoader
-ProxyManager --> ProxyParser
 ProxyManager --> Proxies
-
+Proxies ..> ProxyLoader
+ProxyLoader ..> RowParser
 @enduml
