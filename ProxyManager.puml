@@ -3,8 +3,50 @@ class ProxyManager{
       proxy_interval: int
       proxy_error_interval: int
       can_sleep: bool
+      proxy_pool: ProxyPool()
+      proxy_loader: ProxyLoader()
+      load_from_txt()
+      from_rows()
+      __enter__()
+      __exit__()
 }
-ProxyManager --> Proxies
-Proxies ..> ProxyLoader
+class ProxyPool{
+    proxy_interval: int
+    proxy_error_interval: int
+    can_sleep: bool
+    proxies: []
+    get(formatter_name)
+    add_proxy()
+    add_proxies()
+    -set_proxy_setting()
+    __enter__()
+    __exit__()
+}
+
+class ProxyLoader{
+    load_from_txt(path, pattern)
+    from_rows(rows, parse_pattern)
+}
+
+class RowParser{
+    parse_pattern
+    parse_row()
+}
+class Proxy{
+    ip
+    port
+    login
+    password
+    proxy_interval: int
+    proxy_error_interval: int
+    can_sleep: bool
+    __enter__()
+    __exit__()
+}
+
+ProxyPool o--> Proxy
+ProxyManager --> ProxyPool
+ProxyManager --> ProxyLoader
 ProxyLoader ..> RowParser
+RowParser --> Proxy
 @enduml

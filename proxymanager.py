@@ -211,13 +211,17 @@ class ProxyPool:
         pass
 
 class ProxyManager:
-    # TODO добавить кастомный хандлер ошибок
+    # TODO добавить хандлеры ошибок под типы форматтеров
     def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
         """
+        Загружает прокси из указанного источника, должен работать через контекст менеджер,
+         контролирует частоту использования прокси, отлавливает ошибки через контекст менеджер.
+
+        
         :param proxy_interval: добавляет указанный интервал в секундах каждый раз когда используется прокси
         :param proxy_error_interval: добавляет указанный интервал на прокси в случае ошибки
-        :param can_sleep: если время прокси больше чем текущее время то использует sleep
-         пока время прокси не станет меньше текущего времени
+        :param can_sleep: bool, если время прокси больше чем текущее время то использует sleep
+            пока время прокси не станет меньше текущего времени
         """
         self.proxy_pool = ProxyPool(proxy_interval=proxy_interval, proxy_error_interval=proxy_error_interval,
                                     can_sleep=can_sleep)
@@ -229,12 +233,18 @@ class ProxyManager:
         :param path: путь к файлу прокси
         :param parse_pattern указывается порядок полей прокси и их разделители:
         'login:password@ip:port' или 'ip:port'
-        :return:
+        :return: None
         """
         proxies = self.proxy_loader.load_from_txt(path, parse_pattern)
         self.proxy_pool.add_proxies(proxies)
 
-    def from_rows(self, rows: list[dict], parse_pattern='login:password@ip:port:'):
+    def from_rows(self, rows: list[dict], parse_pattern='login:password@ip:port'):
+        """
+
+        :param rows: [str, str,str]
+        :param parse_pattern: 'login:password@ip:port' или 'ip:port' могут быть любые разделители
+        :return: None
+        """
         proxies = self.proxy_loader.from_rows(rows, parse_pattern)
         self.proxy_pool.add_proxies(proxies)
 
@@ -253,6 +263,8 @@ class ProxyManager:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
+
+
 async def loop_test():
     pm = ProxyManager()
     pm.load_from_txt('proxies.txt', 'ip:port:login:password')
@@ -268,7 +280,7 @@ def test_sync():
     pm = ProxyManager()
     pm.load_from_txt('proxies.txt', 'ip:port:login:password')
     for i in range(15):
-        with pm.get('http_requests') as proxy:
+        with pm.get('aiohttp') as proxy:
             print(proxy)
 
 if __name__ == "__main__":
