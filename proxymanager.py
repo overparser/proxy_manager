@@ -211,6 +211,7 @@ class ProxyPool:
         pass
 
 class ProxyManager:
+    # TODO добавить кастомный хандлер ошибок
     def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
         """
         :param proxy_interval: добавляет указанный интервал в секундах каждый раз когда используется прокси

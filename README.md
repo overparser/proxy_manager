@@ -1,8 +1,8 @@
 
-ProxyManager: context_manager
+#Context_manager
 ```
 pm = ProxyManager()
-pm.load_from_txt('proxies.txt', 'login:password@ip:port')
+pm.load_from_txt('proxies.txt', parse_pattern='login:password@ip:port')
 
 for i in range(15):
     with pm.get('http_requests') as proxy:
@@ -30,11 +30,11 @@ sleep
 ...
 ```
 
-ProxyManager: async context_manager
+#Async context_manager
 ```
 async def loop_test():
     pm = ProxyManager()
-    pm.load_from_txt('proxies.txt', 'login:password@ip:port')
+    pm.load_from_txt('proxies.txt', parse_pattern='login:password@ip:port')
     for i in range(15):
         async with pm.get('http_requests') as proxy:
             print(proxy)
@@ -61,4 +61,15 @@ asleep
 {'http': 'http://tuthixen:some_password@45.87.249.85:7663'}
 {'http': 'http://tuthixen:some_password@45.87.249.173:7751'}
 ...
+```
+
+#Load from rows
+```
+rows = [
+    '45.87.249.8:7586@tuthixen:some_password',
+    '45.87.249.44:7622@tuthixen:some_password',
+    '45.87.249.84:7662@tuthixen:some_password'
+]
+pm = ProxyManager()
+pm.from_rows(rows, parse_pattern='ip:port@login:password')
 ```
