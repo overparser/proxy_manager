@@ -1,11 +1,6 @@
 import json
-from bisect import bisect
 import time
 
-def reade_lines(path):
-    with open(path, "r") as file:
-        reader = file.read()
-    return [row for row in reader.split("\n") if row]
 
 class Formatters:
     @staticmethod
@@ -24,10 +19,12 @@ class Formatters:
             'https': f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
         }
 
-
+    @staticmethod
+    def dict(self):
+        return {'login': self.login, 'password': self.password, 'ip': self.ip, 'port': self.port}
 
 class Proxy:
-    def __init__(self, proxy: dict, formatter_name=None, proxy_interval=2, proxy_error_interval=8,
+    def __init__(self, ip=None, port=None, login=None, password=None, proxy_interval=2, proxy_error_interval=8,
                  can_sleep=True):
         """
 
@@ -38,12 +35,23 @@ class Proxy:
             aiohttp - "http://login:password@ip:port"
         :param proxy_interval:
         """
-        self.__dict__.update(proxy)
+        self.ip = ip
+        self.port = port
+        self.login = login
+        self.password = password
         self.last_time = 0
-        self.formatter = getattr(Formatters, formatter_name)
+        self.formatters = Formatters()
+        self.formatter = None
         self.proxy_interval = proxy_interval
         self.proxy_error_interval = proxy_error_interval
         self.can_sleep = can_sleep
+
+    def from_dict(self, dict_):
+        self.__dict__.update(dict_)
+        return self
+
+    def set_formatter(self, formatter_name):
+        self.formatter = getattr(Formatters, formatter_name)
 
     def _increase_last_time(self):
         self.last_time = time.time() + self.proxy_interval
@@ -57,6 +65,9 @@ class Proxy:
         self._increase_last_time()
 
     def _formated_proxy(self):
+        if not self.formatter:
+            'formatter does not exist'
+
         return self.formatter(self)
 
     def __enter__(self):
@@ -73,63 +84,17 @@ class Proxy:
             self.password: '53d8tl329rrx', self.last_time: 0, self.proxy_interval: 2,
             self.proxy_error_interval: 8, self.can_sleep: True}, indent=4)
 
+def reade_lines(path):
+    # TODO добавить валидацию os.path для вложенных директорий
+    with open(path, "r") as file:
+        reader = file.read()
+    return [row for row in reader.split("\n") if row]
 
-class Proxies:
-    def __init__(self, proxies=None):
-        self.proxies = proxies or []
-
-    def get(self):
-        # можно оптимизировать под bisect
-        self.proxies.sort(key=lambda obj: obj.last_time)
-        return self.proxies[0]
-
-    def add_proxy(self, proxy: Proxy):
-        self.proxies.append(proxy)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-class ProxyManager:
-    def __init__(self, path=None, parse_pattern='ip:port:login:password', formatter_name='aiohttp', proxy_interval=2,
-                 can_sleep=True):
-        self.proxy_loader = ProxyLoader()
-        self.proxy_parser = ProxyParser(parse_pattern)
-        self.proxy = Proxy
-        self.proxies = Proxies()
-        self.path = path
-        self.parse_pattern = parse_pattern
-        self.formatter_name = formatter_name
-        self.proxy_interval = proxy_interval
-        self.can_sleep = can_sleep
-
-    def load(self):
-        proxy_dicts = self.proxy_loader.load_from_txt(self.path, self.parse_pattern)
-
-        for proxy_dict in proxy_dicts:
-            proxy = Proxy(proxy_dict, formatter_name=self.formatter_name, proxy_interval=2, proxy_error_interval=8, can_sleep=self.can_sleep)
-            self.proxies.add_proxy(proxy)
-        return self.proxies
-
-class ProxyLoader:
-    @staticmethod
-    def load_from_txt(path, parse_pattern='ip:port:login:password'):
-        proxy_rows = reade_lines(path)
-        proxy_dicts = ProxyParser(parse_pattern).parse_each_row(proxy_rows)
-        return proxy_dicts
-
-    @staticmethod
-    def load_from_json(path):
-        pass
-
-    @staticmethod
-    def load_from_csv(path):
-        pass
-
-class ProxyParser:
+class RowParser:
     def __init__(self, parse_pattern='ip:port:login:password'):
+        """
+            :param parse_pattern: 'ip:port@login:password' с любыми разделителями, сохраняется указанный порядок значений
+        """
         self.parse_pattern = parse_pattern
         self.delimiters = None
         self.key_positions = None
@@ -156,10 +121,91 @@ class ProxyParser:
     def parse_each_row(self, rows):
         return [self.parse_row(row) for row in rows]
 
+class ProxyLoader:
+    @staticmethod
+    def load_from_txt(path, parse_pattern=None):
+        rows = reade_lines(path)
+        proxies: list[dict] = RowParser(parse_pattern).parse_each_row(rows)
+        return proxies
+
+    @staticmethod
+    def load_from_csv(path):
+        pass
+
+class Proxies:
+    def __init__(self, proxy_interval=None, proxy_error_interval=None,
+                          can_sleep=None):
+        """
+        :param proxies: [Proxy, ...]
+        """
+        self.proxy_interval = proxy_interval
+        self.proxy_error_interval = proxy_error_interval
+        self.can_sleep = can_sleep
+        self.proxy_loader = ProxyLoader()
+        self.proxies = []
+
+    def get(self, formatter_name):
+        """
+
+        :param formatter_name:
+            http_requests - {'http': login:pass@ip:port},
+            https_requests - {'https': login:pass@ip:port},
+            aiohttp - "http://login:password@ip:port"
+
+        :return:
+        """
+        # можно оптимизировать под bisect
+        self.proxies.sort(key=lambda obj: obj.last_time)
+        proxy = self.proxies[0]
+        proxy.set_formatter(formatter_name)
+        return proxy
+
+    def load_from_txt(self, path, parse_pattern='login:password@ip:port:'):
+        proxy_dicts = self.proxy_loader.load_from_txt(path, parse_pattern)
+        self._fill_from_dict_list(proxy_dicts)
+
+    def from_rows(self, rows, parse_pattern):
+        proxy_dicts = RowParser(parse_pattern).parse_each_row(rows)
+        self._fill_from_dict_list(proxy_dicts)
+
+    def _fill_from_dict_list(self, dict_list: list[dict]):
+        for proxy_dict in dict_list:
+            proxy = Proxy(proxy_interval=self.proxy_interval, proxy_error_interval=self.proxy_error_interval,
+                          can_sleep=self.can_sleep).from_dict(proxy_dict)
+            self.proxies.append(proxy)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class ProxyManager:
+    def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
+        self.proxy_loader = ProxyLoader()
+        self.proxies = Proxies(proxy_interval=proxy_interval, proxy_error_interval=proxy_error_interval,
+                          can_sleep=can_sleep)
+
+    def load_from_txt(self, path, parse_pattern='login:password@ip:port:'):
+        self.proxies.load_from_txt(path, parse_pattern)
+
+    def from_rows(self, rows: list[dict], parse_pattern='login:password@ip:port:'):
+        self.proxies.from_rows(rows, parse_pattern)
+
+    def get(self, formatter_name):
+        return self.proxies.get(formatter_name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 if __name__ == "__main__":
-    pm = ProxyManager('proxies.txt').load()
+    pm = ProxyManager()
+    pm.load_from_txt('proxies.txt', 'ip:port:login:password')
     for i in range(155):
-        with pm.get() as proxy:
+        with pm.get('aiohttp') as proxy:
             print(proxy)
 
     # with proxy_manager.get() as proxy:

@@ -1,0 +1,28 @@
+@startuml
+class ProxyLoader{
+    from_txt(TxtLoader)
+    from_row_list()
+    from_csv()
+}
+
+class AbstractLoader{}
+
+
+class FromTxt{
+}
+
+class Proxy{
+}
+
+
+class BaseParser{
+}
+
+AbstractLoader <|.. FromTxt
+AbstractLoader <|.. FromCsv
+ProxyLoader o--> Proxy
+ProxyLoader ..> FromTxt
+ProxyLoader ..> FromCsv
+
+BaseLoader <|.. Loader
+@enduml
