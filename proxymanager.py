@@ -1,6 +1,5 @@
-import json
 import time
-
+import asyncio
 
 class Formatters:
     @staticmethod
@@ -77,6 +76,15 @@ class Proxy:
             return
         self._increase_last_time()
 
+    async def _maybe_asleep(self):
+        if self.can_sleep and self.last_time > time.time():
+            print("asleep")
+            await asyncio.sleep(self.last_time - time.time())
+            self._increase_last_time()
+            return
+
+        self._increase_last_time()
+
     def _formated_proxy(self):
         if not self.formatter:
             raise AttributeError('formatter does not exist')
@@ -88,6 +96,14 @@ class Proxy:
         return self._formated_proxy()
 
     def __exit__(self, type, value, traceback):
+        if isinstance(value, Exception):
+            self.last_time += 8
+
+    async def __aenter__(self):
+        await self._maybe_asleep()
+        return self._formated_proxy()
+
+    async def __aexit__(self, type, value, traceback):
         if isinstance(value, Exception):
             self.last_time += 8
 
@@ -188,6 +204,12 @@ class ProxyPool:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 class ProxyManager:
     def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
         """
@@ -224,9 +246,30 @@ class ProxyManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
-if __name__ == "__main__":
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+async def loop_test():
     pm = ProxyManager()
     pm.load_from_txt('proxies.txt', 'ip:port:login:password')
-    for i in range(155):
+    for i in range(15):
+        async with pm.get('http_requests') as proxy:
+            print(proxy)
+
+
+def test_async():
+    asyncio.run(loop_test())
+
+def test_sync():
+    pm = ProxyManager()
+    pm.load_from_txt('proxies.txt', 'ip:port:login:password')
+    for i in range(15):
         with pm.get('http_requests') as proxy:
             print(proxy)
+
+if __name__ == "__main__":
+    test_sync()
+    test_async()
