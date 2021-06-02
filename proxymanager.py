@@ -145,6 +145,9 @@ class Proxy:
     def set_formatter(self, formatter):
         self.formatter = formatter
 
+    def get(self):
+        return self.formatter(self)
+
     def from_dict(self, dict_):
         self.__dict__.update(dict_)
         return self
@@ -272,9 +275,14 @@ class ProxyManager:
         self.formatter = formatter
         self.proxy_pool.set_formatter(self.formatter)
 
+    def __len__(self):
+        return len(self.proxy_pool.proxies)
+
+    def __iter__(self):
+        return (proxy.get() for proxy in self.proxy_pool.proxies)
+
     def load_from_txt(self, path, parse_pattern):
         """
-
         :param path: путь к файлу прокси
         :param parse_pattern указывается порядок полей прокси и их разделители:
         'login:password@ip:port' или 'ip:port',
@@ -284,9 +292,8 @@ class ProxyManager:
         proxies: list[dict] = self.proxy_loader.load_from_txt(path, parse_pattern)
         [self.proxy_pool.add_proxy_from_dict(proxy_dict) for proxy_dict in proxies]
 
-    def from_rows(self, rows: list[dict], parse_pattern="login:password@ip:port"):
+    def from_rows(self, rows: list[str], parse_pattern):
         """
-
         :param rows: [str, str, str]
         :param parse_pattern: 'login:password@ip:port' или 'ip:port'
          могут исользоваться любые разделители кроме символов встречающихся в логине/пароле
@@ -317,24 +324,39 @@ def custom_formatter(self):
 
 if __name__ == "__main__":
     pm = ProxyManager()
-    pm.load_from_txt("proxies.txt", "ip:port:login:password")
-
-    for i in range(10):
+    rows = [
+        '45.87.249.8:7586@tuthixen:some_password',
+        '45.87.249.44:7622@tuthixen:some_password',
+        '45.87.249.84:7662@tuthixen:some_password'
+    ]
+    pm.from_rows(rows, "ip:port@login:password")
+    pm.set_formatter('dict')
+    for proxy in pm:
         with pm.get() as proxy:
             print(proxy)
 
-    pm.set_formatter("aiohttp")
-
-    for i in range(10):
+    print('switching formatter')
+    pm.set_formatter('aiohttp')
+    for proxy in pm:
         with pm.get() as proxy:
             print(proxy)
 
-    pm.set_formatter("http_requests")
-    for i in range(10):
-        with pm.get() as proxy:
-            print(proxy)
-
-    pm.set_custom_formatter(custom_formatter)
-    for i in range(10):
-        with pm.get() as proxy:
-            print(proxy)
+    # for i in range(10):
+    #     with pm.get() as proxy:
+    #         print(proxy)
+    #
+    # pm.set_formatter("aiohttp")
+    #
+    # for i in range(10):
+    #     with pm.get() as proxy:
+    #         print(proxy)
+    #
+    # pm.set_formatter("http_requests")
+    # for i in range(10):
+    #     with pm.get() as proxy:
+    #         print(proxy)
+    #
+    # pm.set_custom_formatter(custom_formatter)
+    # for i in range(10):
+    #     with pm.get() as proxy:
+    #         print(proxy)

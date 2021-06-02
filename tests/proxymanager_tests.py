@@ -1,7 +1,6 @@
 import unittest
 from proxymanager import ProxyManager, RowParser
 import asyncio
-import requests
 
 
 class TestProxyManagerContext(unittest.TestCase):
