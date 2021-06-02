@@ -266,7 +266,7 @@ class ProxyManager:
         )
         self.proxy_loader = ProxyLoader()
 
-    def set_formatter(self, formatter_name):
+    def set_formatter(self, formatter_name: str):
         self.formatter = getattr(Formatters, formatter_name)
         self.proxy_pool.set_formatter(self.formatter)
 

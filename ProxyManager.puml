@@ -3,8 +3,11 @@ class ProxyManager{
       proxy_interval: int
       proxy_error_interval: int
       can_sleep: bool
+      formatter_name: default['dict']
       proxy_pool: ProxyPool()
       proxy_loader: ProxyLoader()
+      set_formatter()
+      set_custom_formatter()
       load_from_txt()
       from_rows()
       __enter__()
@@ -13,10 +16,12 @@ class ProxyManager{
 class ProxyPool{
     proxy_interval: int
     proxy_error_interval: int
+    formatter: formatter
     can_sleep: bool
     proxies: []
     get(formatter_name)
     add_proxy_from_dict()
+    set_formatter()
     __enter__()
     __exit__()
 }
@@ -38,8 +43,8 @@ class Proxy{
     proxy_interval: int
     proxy_error_interval: int
     can_sleep: bool
-    __enter__()
-    __exit__()
+    formatter: formatter
+    set_formatter()
 }
 class Formatters{
     aiohttp()
@@ -51,6 +56,6 @@ class Formatters{
 ProxyPool *--> Proxy
 ProxyManager --> ProxyPool
 ProxyManager --> ProxyLoader
-ProxyManager --> Formatters
+ProxyManager ..> Formatters
 ProxyLoader ..> RowParser
 @enduml
