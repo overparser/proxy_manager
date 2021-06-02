@@ -16,9 +16,7 @@ class ProxyPool{
     can_sleep: bool
     proxies: []
     get(formatter_name)
-    add_proxy()
-    add_proxies()
-    -set_proxy_setting()
+    add_proxy_from_dict()
     __enter__()
     __exit__()
 }
@@ -43,10 +41,16 @@ class Proxy{
     __enter__()
     __exit__()
 }
+class Formatters{
+    aiohttp()
+    http_requests()
+    https_requests()
+    dict()
 
-ProxyPool o--> Proxy
+}
+ProxyPool *--> Proxy
 ProxyManager --> ProxyPool
 ProxyManager --> ProxyLoader
+ProxyManager --> Formatters
 ProxyLoader ..> RowParser
-RowParser --> Proxy
 @enduml

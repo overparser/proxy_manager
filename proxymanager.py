@@ -80,6 +80,28 @@ class RowParser:
         return [self.parse_row(row) for row in rows]
 
 
+class ProxyLoader:
+    @staticmethod
+    def load_from_txt(path, parse_pattern=None):
+        """
+        Загрузка из плоского файла где каждая прокси начинается с новой строки
+        :param path:
+        :param parse_pattern:
+        :return: [dict, ...]
+        """
+
+        rows = read_lines(path)
+        return RowParser(parse_pattern).parse_each_row(rows)
+
+    def from_rows(self, rows, parse_pattern):
+        """
+        Парсит прокси из списка строк прокси
+        :param rows: [str, str, ...]
+        :param parse_pattern: 'login:passwor@ip:port'
+        :return: [dict, dict, ...]
+        """
+        return RowParser(parse_pattern).parse_each_row(rows)
+
 class Proxy:
     def __init__(self, ip=None, port=None, login=None, password=None, proxy_interval=2, proxy_error_interval=8,
                  can_sleep=True):
@@ -152,18 +174,6 @@ class Proxy:
         if isinstance(value, Exception):
             self.last_time += self.proxy_error_interval
 
-class ProxyLoader:
-    @staticmethod
-    def load_from_txt(path, parse_pattern=None):
-        """Загрузка из плоского файла где каждая прокси начинается с новой строки"""
-        rows = read_lines(path)
-        proxies: list[dict] = RowParser(parse_pattern).parse_each_row(rows)
-        return [Proxy().from_dict(dict_proxy) for dict_proxy in proxies]
-
-    def from_rows(self, rows, parse_pattern):
-        proxies: list[dict] = RowParser(parse_pattern).parse_each_row(rows)
-        return [Proxy().from_dict(dict_proxy) for dict_proxy in proxies]
-
 
 class ProxyPool:
     def __init__(self, proxy_interval=None, proxy_error_interval=None,
@@ -191,17 +201,10 @@ class ProxyPool:
         proxy._set_formatter(formatter_name)
         return proxy
 
-    def _set_proxy_setting(self, proxy):
-        proxy.proxy_interval = self.proxy_interval
-        proxy.proxy_error_interval = self.proxy_interval
-        proxy.can_sleep = self.can_sleep
-
-    def add_proxy(self, proxy):
-        self._set_proxy_setting(proxy)
+    def add_proxy_from_dict(self, proxy_dict):
+        proxy = Proxy(proxy_interval=self.proxy_interval, proxy_error_interval=self.proxy_error_interval, can_sleep=self.can_sleep)
+        proxy.from_dict(proxy_dict)
         self.proxies.append(proxy)
-
-    def add_proxies(self, proxies):
-        [self.add_proxy(proxy) for proxy in proxies]
 
     def __enter__(self):
         return self
@@ -242,8 +245,8 @@ class ProxyManager:
         разделители не должны встречаться в полях строки прокси иначе будет AttributeError
         :return: None
         """
-        proxies = self.proxy_loader.load_from_txt(path, parse_pattern)
-        self.proxy_pool.add_proxies(proxies)
+        proxies: list[dict] = self.proxy_loader.load_from_txt(path, parse_pattern)
+        [self.proxy_pool.add_proxy_from_dict(proxy_dict) for proxy_dict in proxies]
 
     def from_rows(self, rows: list[dict], parse_pattern='login:password@ip:port'):
         """
@@ -253,8 +256,8 @@ class ProxyManager:
          могут исользоваться любые разделители кроме символов встречающихся в логине/пароле
         :return: None
         """
-        proxies = self.proxy_loader.from_rows(rows, parse_pattern)
-        self.proxy_pool.add_proxies(proxies)
+        proxies: list[dict] = self.proxy_loader.from_rows(rows, parse_pattern)
+        [self.proxy_pool.add_proxy_from_dict(proxy_dict) for proxy_dict in proxies]
 
     def get(self, formatter_name):
         return self.proxy_pool.get(formatter_name)
@@ -270,14 +273,3 @@ class ProxyManager:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
-
-if __name__ == '__main__':
-    pm = ProxyManager()
-    pm.load_from_txt('tests/valid_proxies_for_test.txt', 'ip:port:login:password')
-    for i in range(10):
-        with pm.get('aiohttp') as proxy:
-            print(proxy)
-        # try:
-        #     r = requests.get('http://googleasdadsgfgagd.com', timeout=0.1, proxies=proxy)
-        # except requests.exceptions.ReadTimeout as e:
-        #     print('timeout error')

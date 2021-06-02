@@ -4,7 +4,7 @@ import asyncio
 import requests
 
 class TestProxyManagerContext(unittest.TestCase):
-    context_data = [
+    context_manager_result = [
         "http://45.87.249.8:7586@some_login:some_password",
         "http://45.87.249.44:7622@some_login:some_password",
         "http://45.87.249.84:7662@some_login:some_password",
@@ -24,11 +24,11 @@ class TestProxyManagerContext(unittest.TestCase):
         for i in range(10):
             with pm.get("aiohttp") as proxy:
                 proxies.append(proxy)
-        self.assertEqual(proxies, self.context_data)
+        self.assertEqual(proxies, self.context_manager_result)
 
     def test_async_context(self):
         context_proxies = asyncio.run(self._async_context())
-        self.assertEqual(context_proxies, self.context_data)
+        self.assertEqual(context_proxies, self.context_manager_result)
 
 
     async def _async_context(self):
