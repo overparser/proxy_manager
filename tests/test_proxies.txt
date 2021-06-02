@@ -1,0 +1,10 @@
+45.87.249.8:7586@some_login:some_password
+45.87.249.44:7622@some_login:some_password
+45.87.249.84:7662@some_login:some_password
+45.87.249.134:7712@some_login:some_password
+45.87.249.80:7658@some_login:some_password
+45.87.249.88:7666@some_login:some_password
+45.87.249.173:7751@some_login:some_password
+45.87.249.85:7663@some_login:some_password
+45.87.249.112:7690@some_login:some_password
+45.87.249.254:7832@some_login:some_password

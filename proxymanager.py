@@ -1,5 +1,6 @@
 import time
 import asyncio
+import requests
 
 class Formatters:
     @staticmethod
@@ -15,17 +16,17 @@ class Formatters:
                 'http': f"http://{self.login}:{self.password}@{self.ip}:{self.port}"
             }
         return {
-                'http': f"http://{self.ip}:{self.port}"
-            }
+            'http': f"http://{self.ip}:{self.port}"
+        }
 
     @staticmethod
     def https_requests(self):
         if self.login:
             return {
-                'http': f"https://{self.login}:{self.password}@{self.ip}:{self.port}"
+                'https': f"https://{self.login}:{self.password}@{self.ip}:{self.port}"
             }
         return {
-            'http': f"https://{self.ip}:{self.port}"
+            'https': f"https://{self.ip}:{self.port}"
         }
 
     @staticmethod
@@ -33,6 +34,50 @@ class Formatters:
         if self.login:
             return {'login': self.login, 'password': self.password, 'ip': self.ip, 'port': self.port}
         return {'ip': self.ip, 'port': self.port}
+
+
+def read_lines(path):
+    with open(path, "r") as file:
+        reader = file.read()
+    return [row for row in reader.split("\n") if row]
+
+
+class RowParser:
+    def __init__(self, parse_pattern='ip:port:login:password'):
+        """
+            :param parse_pattern: 'ip:port@login:password' с любыми разделителями, сохраняется указанный порядок значений
+        """
+        self.parse_pattern = parse_pattern
+        self.delimiters = None
+        self.key_positions = None
+
+    def _get_delimiters(self):
+        if not self.delimiters:
+            self.delimiters = self._parse_items(self.parse_pattern, ['login', 'password', 'ip', 'port'])
+
+    def _get_key_positions(self):
+        if not self.key_positions:
+            self.key_positions = self._parse_items(self.parse_pattern, self.delimiters)
+
+    def _parse_items(self, row, delimiters):
+        for delim in delimiters:
+            row = row.replace(delim, '!#$%')
+        return [i for i in row.split('!#$%') if i]
+
+    def _check_errors(self, row):
+        for delim in self.delimiters:
+            if self.delimiters.count(delim) < row.count(delim):
+                raise AttributeError('Delimiter exists in row field')
+
+    def parse_row(self, row):
+        self._get_delimiters()
+        self._check_errors(row)
+        self._get_key_positions()
+        proxy_items = self._parse_items(row, self.delimiters)
+        return dict(zip(self.key_positions, proxy_items))
+
+    def parse_each_row(self, rows):
+        return [self.parse_row(row) for row in rows]
 
 
 class Proxy:
@@ -62,8 +107,11 @@ class Proxy:
         self.__dict__.update(dict_)
         return self
 
-    def set_formatter(self, formatter_name):
-        self.formatter = getattr(Formatters, formatter_name)
+    def _set_formatter(self, formatter_name):
+        """Устанвливает формат прокси и обработку исключений
+        formatter_name: 'dict', 'aiohttp', 'http_requests', 'https_requests'
+        """
+        self.formatter = getattr(self.formatters, formatter_name)
 
     def _increase_last_time(self):
         self.last_time = time.time() + self.proxy_interval
@@ -72,18 +120,13 @@ class Proxy:
         if self.can_sleep and self.last_time > time.time():
             print("sleep")
             time.sleep(self.last_time - time.time())
-            self._increase_last_time()
             return
-        self._increase_last_time()
 
     async def _maybe_asleep(self):
         if self.can_sleep and self.last_time > time.time():
             print("asleep")
             await asyncio.sleep(self.last_time - time.time())
-            self._increase_last_time()
             return
-
-        self._increase_last_time()
 
     def _formated_proxy(self):
         if not self.formatter:
@@ -93,61 +136,26 @@ class Proxy:
 
     def __enter__(self):
         self._maybe_sleep()
+        self._increase_last_time()
         return self._formated_proxy()
 
     def __exit__(self, type, value, traceback):
         if isinstance(value, Exception):
-            self.last_time += 8
+            self.last_time += self.proxy_error_interval
 
     async def __aenter__(self):
         await self._maybe_asleep()
+        self._increase_last_time()
         return self._formated_proxy()
 
     async def __aexit__(self, type, value, traceback):
         if isinstance(value, Exception):
-            self.last_time += 8
-
-def read_lines(path):
-    # TODO добавить валидацию os.path для вложенных директорий
-    with open(path, "r") as file:
-        reader = file.read()
-    return [row for row in reader.split("\n") if row]
-
-
-class RowParser:
-    def __init__(self, parse_pattern='ip:port:login:password'):
-        """
-            :param parse_pattern: 'ip:port@login:password' с любыми разделителями, сохраняется указанный порядок значений
-        """
-        self.parse_pattern = parse_pattern
-        self.delimiters = None
-        self.key_positions = None
-
-    def _get_delimiters(self):
-        if not self.delimiters:
-            self.delimiters = self._parse_items(self.parse_pattern, ['login', 'password', 'ip', 'port'])
-
-    def _get_key_positions(self):
-        if not self.key_positions:
-            self.key_positions = self._parse_items(self.parse_pattern, self.delimiters)
-
-    def _parse_items(self, row, delimiters):
-        for delim in delimiters:
-            row = row.replace(delim, '!#$%')
-        return [i for i in row.split('!#$%') if i]
-
-    def parse_row(self, row):
-        self._get_delimiters()
-        self._get_key_positions()
-        proxy_items = self._parse_items(row, self.delimiters)
-        return dict(zip(self.key_positions, proxy_items))
-
-    def parse_each_row(self, rows):
-        return [self.parse_row(row) for row in rows]
+            self.last_time += self.proxy_error_interval
 
 class ProxyLoader:
     @staticmethod
     def load_from_txt(path, parse_pattern=None):
+        """Загрузка из плоского файла где каждая прокси начинается с новой строки"""
         rows = read_lines(path)
         proxies: list[dict] = RowParser(parse_pattern).parse_each_row(rows)
         return [Proxy().from_dict(dict_proxy) for dict_proxy in proxies]
@@ -156,9 +164,6 @@ class ProxyLoader:
         proxies: list[dict] = RowParser(parse_pattern).parse_each_row(rows)
         return [Proxy().from_dict(dict_proxy) for dict_proxy in proxies]
 
-    @staticmethod
-    def load_from_csv(path):
-        pass
 
 class ProxyPool:
     def __init__(self, proxy_interval=None, proxy_error_interval=None,
@@ -183,7 +188,7 @@ class ProxyPool:
         # можно оптимизировать под bisect
         self.proxies.sort(key=lambda obj: obj.last_time)
         proxy = self.proxies[0]
-        proxy.set_formatter(formatter_name)
+        proxy._set_formatter(formatter_name)
         return proxy
 
     def _set_proxy_setting(self, proxy):
@@ -215,13 +220,14 @@ class ProxyManager:
     def __init__(self, proxy_interval=2, proxy_error_interval=8, can_sleep=True):
         """
         Загружает прокси из указанного источника, должен работать через контекст менеджер,
-         контролирует частоту использования прокси, отлавливает ошибки через контекст менеджер.
+         контролирует частоту использования прокси, при возникновении ошибки увеличивает
+         задержку времени на использование прокси.
 
         
         :param proxy_interval: добавляет указанный интервал в секундах каждый раз когда используется прокси
         :param proxy_error_interval: добавляет указанный интервал на прокси в случае ошибки
-        :param can_sleep: bool, если время прокси больше чем текущее время то использует sleep
-            пока время прокси не станет меньше текущего времени
+        :param can_sleep: bool, если время прокси больше чем текущее время то использует time.sleep/asyncio.sleep
+        пока время прокси не станет меньше текущего времени
         """
         self.proxy_pool = ProxyPool(proxy_interval=proxy_interval, proxy_error_interval=proxy_error_interval,
                                     can_sleep=can_sleep)
@@ -232,7 +238,8 @@ class ProxyManager:
 
         :param path: путь к файлу прокси
         :param parse_pattern указывается порядок полей прокси и их разделители:
-        'login:password@ip:port' или 'ip:port'
+        'login:password@ip:port' или 'ip:port',
+        разделители не должны встречаться в полях строки прокси иначе будет AttributeError
         :return: None
         """
         proxies = self.proxy_loader.load_from_txt(path, parse_pattern)
@@ -241,8 +248,9 @@ class ProxyManager:
     def from_rows(self, rows: list[dict], parse_pattern='login:password@ip:port'):
         """
 
-        :param rows: [str, str,str]
-        :param parse_pattern: 'login:password@ip:port' или 'ip:port' могут быть любые разделители
+        :param rows: [str, str, str]
+        :param parse_pattern: 'login:password@ip:port' или 'ip:port'
+         могут исользоваться любые разделители кроме символов встречающихся в логине/пароле
         :return: None
         """
         proxies = self.proxy_loader.from_rows(rows, parse_pattern)
@@ -263,26 +271,13 @@ class ProxyManager:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
 
-
-
-async def loop_test():
+if __name__ == '__main__':
     pm = ProxyManager()
-    pm.load_from_txt('proxies.txt', 'ip:port:login:password')
-    for i in range(15):
-        async with pm.get('http_requests') as proxy:
-            print(proxy)
-
-
-def test_async():
-    asyncio.run(loop_test())
-
-def test_sync():
-    pm = ProxyManager()
-    pm.load_from_txt('proxies.txt', 'ip:port:login:password')
-    for i in range(15):
+    pm.load_from_txt('tests/valid_proxies_for_test.txt', 'ip:port:login:password')
+    for i in range(10):
         with pm.get('aiohttp') as proxy:
             print(proxy)
-
-if __name__ == "__main__":
-    test_sync()
-    test_async()
+        # try:
+        #     r = requests.get('http://googleasdadsgfgagd.com', timeout=0.1, proxies=proxy)
+        # except requests.exceptions.ReadTimeout as e:
+        #     print('timeout error')
