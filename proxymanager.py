@@ -238,7 +238,6 @@ class ProxyPool:
 
 
 class ProxyManager:
-    # TODO добавить хандлеры ошибок под типы форматтеров
     def __init__(
         self,
         proxy_interval=2,
@@ -252,7 +251,7 @@ class ProxyManager:
          задержку времени на использование прокси.
 
 
-        :param proxy_interval: добавляет указанный интервал в секундах каждый раз когда используется прокси
+        :param proxy_interval: добавляет указанный интервал в секундах к текущему времени каждый раз когда используется прокси
         :param proxy_error_interval: добавляет указанный интервал на прокси в случае ошибки
         :param can_sleep: bool, если время прокси больше чем текущее время то использует time.sleep/asyncio.sleep
         :param formatter_name: имя форматтера прокси - 'dict', 'aiohttp', 'http_requests', 'https_requests'
@@ -331,13 +330,13 @@ if __name__ == "__main__":
     ]
     pm.from_rows(rows, "ip:port@login:password")
     pm.set_formatter('dict')
-    for proxy in pm:
+    for _ in pm:
         with pm.get() as proxy:
             print(proxy)
 
     print('switching formatter')
     pm.set_formatter('aiohttp')
-    for proxy in pm:
+    for _ in pm:
         with pm.get() as proxy:
             print(proxy)
 

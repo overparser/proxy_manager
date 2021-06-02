@@ -1,3 +1,35 @@
+# ProxyManager
+Создан в результате необходимости удобного контроля интервалов прокси.
+В случае возникновения ошибки в области контекст менеджера автоматически увеличивает интервал прокси.
+Прокси считается свободной если последнее время ее использования не превышает текущее время. 
+Если свободных прокси нет то использует asyncio.sleep/time.sleep в зависимости от контекст менеджера,
+пока время прокси не станет меньше чем текущее время.
+```
+class ProxyManager:
+    def __init__(
+        self,
+        proxy_interval=2,
+        proxy_error_interval=8,
+        can_sleep=True,
+        formatter_name="dict",
+    ):
+        """
+        Загружает прокси из указанного источника, должен работать через контекст менеджер,
+         контролирует частоту использования прокси, при возникновении ошибки увеличивает
+         задержку времени на использование прокси.
+
+
+        :param proxy_interval: добавляет указанный интервал в секундах к текущему времени каждый раз когда используется прокси
+        :param proxy_error_interval: добавляет указанный интервал на прокси в случае ошибки
+        :param can_sleep: bool, если время прокси больше чем текущее время то использует time.sleep/asyncio.sleep
+            пока время прокси не станет меньше текущего времени. Можно отключить тогда будет использоваться просто как
+            сортировка ошибочных прокси
+
+        :param formatter_name: имя форматтера прокси - 'dict', 'aiohttp', 'http_requests', 'https_requests'
+        """
+```
+
+
 
 ## Context_manager
 ```
@@ -98,15 +130,15 @@ rows = [
 pm = ProxyManager()
 pm.from_rows(rows, "ip:port@login:password")
 pm.set_formatter('dict')
-for proxy in pm:
+for _ in pm:
     with pm.get() as proxy:
-    print(proxy)
+        print(proxy)
 
 print('switching formatter')
 pm.set_formatter('aiohttp')
-for proxy in pm:
+for _ in pm:
     with pm.get() as proxy:
-    print(proxy)
+        print(proxy)
 ```
 #### Output:
 ```
